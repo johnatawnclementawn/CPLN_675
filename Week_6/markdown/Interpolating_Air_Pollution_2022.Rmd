@@ -148,7 +148,7 @@ You can read in data in one of the following ways:
 1. Put your output from the ArcGIS exercise above into the below code block:
 
 ```{r read_file, eval=FALSE}
-epa <- st_read("myfilepath/myfile.shp") %>%
+epa <- st_read("D:/Users/Johnathan/Google Drive/Grad School/Penn_MUSA/Spring2022/675_LUaEModeling/Github/Week_6/675_wk6_inclassEx/Mid_Atlantic_EPA_Dataset_withLag.shp") %>%
   st_transform(crs = 4326)
 ```
 
@@ -157,7 +157,7 @@ OR
 
 2. Load this dataset from Github (which should match your data from the above process):
 
-```{r read data, message = FALSE, warning = FALSE}
+```{r read data, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
 epa <- st_read("https://raw.githubusercontent.com/mafichman/CPLN_675/main/Week_6/data/wk6_airPollution/Mid_Atlantic_EPA_Dataset_withLag.geojson")
 ```
 
@@ -195,7 +195,7 @@ The first code block is a bit tricky. Feel free to run it line by line to get a 
 
 - We pipe the `st_centroid` and `st_coordinates` commands to `epa` to create a data frame of X and Y coordinates to get some add reliable coordinates for our data.
 
-- From the original `epa` layer we pull out just the variables we want for this analysis using `select`. Examine what we keep - some variables associated with the landscape and land use, and our Ozone lag `Ave_ozoneH`.
+- From the original `epa` layer we pull out just the variables we want for this analysis using `select`. Examine what we keep - some variables associated with the landscape and land use, and our Ozone lag `MEAN_ozone`.
 
 ```{r cbind_epa2, warning = FALSE, message = FALSE}
 epa2 <-
@@ -204,7 +204,7 @@ epa2 <-
     epa %>% 
     dplyr::select(HwyDensity,distWater,sumDevelop,sumForest,
            distI95,Population,distCities,training,
-           ozoneHigh,Ave_ozoneH))
+           ozoneHigh,MEAN_ozone))
 ```
 
 
@@ -265,7 +265,7 @@ Overall, what do we make of this model?
 ```{r}
 reg <- lm(ozoneHigh ~ ., data=training %>% 
                                    as.data.frame() %>%
-                                   select(-Ave_ozoneH,-geometry,-training,-X,-Y))
+                                   select(-MEAN_ozone,-geometry,-training,-X,-Y))
 summary(reg)
 
 ```
@@ -280,7 +280,7 @@ Why?
 ```{r}
 reg2 <- lm(ozoneHigh ~ ., data=training %>% 
                                    as.data.frame() %>%
-                                   select(-Ave_ozoneH,-geometry,-training))
+                                   select(-MEAN_ozone,-geometry,-training))
 summary(reg2)
 ```
 
@@ -292,7 +292,7 @@ What do you think about this correlation?
 
 
 ```{r}
-ggplot(training, aes(Ave_ozoneH, ozoneHigh)) +
+ggplot(training, aes(MEAN_ozone, ozoneHigh)) +
  geom_point() +
  geom_smooth(method="lm",se=F) +
  labs(title="Ozone as a function of the spatial lag of ozone")
@@ -302,7 +302,8 @@ Let’s include spatial lag in the regression
 ```{r}
 reg.lag <- lm(ozoneHigh ~ ., data=training %>% 
                                    as.data.frame() %>%
-                                   select(-geometry,-training))
+                                   # select(-geometry,-training))
+                                   select(ozoneHigh, MEAN_ozone))
 summary(reg.lag)
 ```
 
@@ -336,7 +337,7 @@ Next, create three plots of predictions for observed.
 Which model looks most accurate?
 
 ```{r plot_training, message = FALSE, warning= FALSE}
-ggplot(data = training.summary, aes(Value, ozoneHigh)) + 
+ggplot(data = training.summary, aes(ozoneHigh, Value)) + 
   geom_point() + geom_smooth(method = "lm", se = FALSE) +
   facet_wrap(~Variable, scales = "free")
 ```
@@ -432,7 +433,7 @@ epa_joined <- epa %>% left_join(., tables_joined, by = c("FID_1" = "FID"))
 
 ```{r ggplot_preds, echo=FALSE}
 grid.arrange(ggplot() +
-    geom_sf(data = epa_joined, aes(fill=Ave_ozoneH), color = "transparent") + 
+    geom_sf(data = epa_joined, aes(fill=MEAN_ozone), color = "transparent") + 
     scale_fill_viridis(name="Spatial Lag") +
     mapTheme,
     ggplot() +
