@@ -59,6 +59,7 @@ If you haven't installed any of the folling packages, use the `install.packages`
 (If you have them installed, you can skip this step)
 
 ```{r setup_packages1, warning = FALSE, eval = FALSE}
+knitr::opts_chunk$set(eval = FALSE, include = FALSE)
 install.packages('tidyverse')
 install.packages('tidycensus')
 install.packages('sf')
@@ -82,12 +83,12 @@ You will need a "key" to access the Census API. You can find one at [their websi
 
 Paste it into the code block below:
 
-```{r load_key_hide, warning= FALSE, include=FALSE}
+```{r load_key_hide, eval=FALSE, warning=FALSE, include=FALSE}
 census_key <- read.table("~/GitHub/census_key.txt", quote="\"", comment.char="")
 census_api_key(census_key[1] %>% as.character(), overwrite = TRUE)
 ```
 
-```{r load_key, warning = FALSE, eval = FALSE}
+```{r load_key, eval=FALSE, warning=FALSE, include=FALSE}
 census_api_key("YOUR KEY GOES HERE", overwrite = TRUE)
 ```
 
@@ -321,7 +322,7 @@ If you want to see what the intermediate products are in this chain of functions
 ```{r counties_tigris, message = FALSE, warning=FALSE, results = "hide"}
 allegheny <- counties('PA') %>%
   st_as_sf()%>%
-  st_transform(crs=4326)%>%
+  st_transform(crs=4326) %>%
   filter(NAME == "Allegheny")
 ```
 
@@ -420,7 +421,7 @@ If you can't find it there, it's available at my github:
 Then, read it in using either a line of code leading to the filepath (as below) or using the Import command in the "File" dropdown in R Studio
 
 ```{r load_toxic, cache = TRUE}
-toxic <- read.csv("~/GitHub/CPLN_675/Week_5/data/toxic.csv")
+toxic <- read.csv("D:/Users/Johnathan/Google Drive/Grad School/Penn_MUSA/Spring2022/675_LUaEModeling/Github/Week_5/data/toxic.csv")
 ```
 
 
