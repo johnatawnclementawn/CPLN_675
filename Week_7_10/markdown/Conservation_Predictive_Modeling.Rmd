@@ -1,5 +1,5 @@
 ---
-title: "CPLN 675: Site suitability & predictive modeling"
+title: "CPLN 675: Spatial Predictive Modeling for Classification"
 author: "Ken Steif & Michael Fichman"
 date: "2/4/2022"
 output: 
@@ -101,6 +101,8 @@ glimpse(preserve)
 glimpse(protected)
 ```
 
+## 3.1. Maps
+
 Let's plot the shapefile of our protected lands on top of our counties. We give the shape some color and transparency.
 
 ```{r}
@@ -114,12 +116,15 @@ ggplot() +
   mapTheme
 ```
 
-Now let’s plot the fishnet version.
+Now let’s plot the fishnet version. 
 
-```{r}
+Notice we set the `fill` of our `geom_sf` to `as.factor(preserve)` and set the color to "transparent" outside the aesthetics. What does this do?
+
+```{r plot_fishnet}
 ggplot() + 
-  geom_sf(data=preserve, aes(fill=as.factor(preserve))) +
-  scale_fill_manual(values = c("dodgerblue4", "darkgreen"),
+  geom_sf(data=preserve, aes(fill=as.factor(preserve)), color = "transparent") +
+  geom_sf(data = counties, fill = "transparent", color = "white")+
+  scale_fill_manual(values = c("dark blue", "dark green"),
                     labels = c("Not Preserved","Preserved"),
                     name = "") +
   labs(title="Protected lands in Pennsylvania (Fishnet)") +
@@ -133,71 +138,84 @@ Although we are dealing with a fishnet, for speed's sake, let’s try to plot as
 
 In addition, because we are no longer using fill, we use `scale_colour_manual` to create a color gradient.
 
-```{r}
+```{r map_points}
 ggplot() + 
-  geom_point(data=preserve, aes(x,Y,colour=as.factor(preserve)), size=2) +
-  scale_colour_manual(values = c("dodgerblue4", "darkgreen"),
+  geom_point(data=preserve, aes(x, Y, colour=as.factor(preserve)), size=2) +
+  scale_colour_manual(values = c("dark blue", "dark green"),
                     labels = c("Not Preserved","Preserved"),
                     name = "") +
-  labs(title="Protected lands in Pennsylvania (Points") +
+  labs(title="Protected lands in Pennsylvania (Points)",
+       subtitle ="This plots much faster!") +
   mapTheme
 ```
 
-Let’s build some bar plots that show differences in our independent variables across land that has and has not been preserved. What is gather doing below?
+## 3.2. Plots
 
-```{r}
+Let’s build some bar plots that show differences in our independent variables across land that has and has not been preserved. 
+
+Notice the use of the `gather` function. What is it doing? Use `glimpse` to examine the data.
+
+```{r wide_2_long}
 preservePlotVariables <- 
   preserve %>%
   as.data.frame() %>%
   select(preserve,elevation,slope,dSteepSlop,dUrban,distRivers) %>%
-  gather(key, value, elevation:distRivers)
+  gather(variable, value, -preserve)
 ```
 
-```{r}
-ggplot(preservePlotVariables, aes(as.factor(preserve), value, fill=as.factor(preserve))) + 
-     geom_bar(stat="identity") + 
-     facet_wrap(~key) +
-     scale_fill_manual(values = c("dodgerblue4", "darkgreen"),
+*Note* there is a more modern version of `gather` known as `pivot_longer`, where the syntax would look like this:
+
+```{r pivot_longer, echo=FALSE}
+preserve %>% as.data.frame() %>%
+    select(preserve,elevation,slope,dSteepSlop,dUrban,distRivers) %>% 
+    pivot_longer(cols = -preserve)
+```
+
+
+![Pivoting between wide and long data](~/Github/CPLN_675/Week_7_10/images/tidyr-spread-gather.gif)
+Image: https://www.garrickadenbuie.com/
+
+Let's examine some of the variables and how they vary across our preserved/not preserved variable. Our `preservePlotVariables` data frame has rows for each cell-variable pair, we `group_by` variable and preservation status and take the mean value for each variable by status.
+
+```{r eda_by_status}
+ggplot(preservePlotVariables %>%
+         group_by(preserve, variable) %>%
+         summarize(mean = mean(value))) + 
+     geom_bar(aes(as.factor(preserve), 
+                  mean, 
+                  fill=as.factor(preserve)),
+              stat="identity") + 
+     facet_wrap(~variable) +
+     scale_fill_manual(values = c("dark blue", "dark green"),
                       labels = c("Not Preserved","Preserved"),
                       name = "") +
     labs(x="Preserved", y="Value")
 ```
 
+*Question:*
 
-Let’s plot again, but this time we have to scale `slope` so that the differences, if any, are apparent.
+**Can you calculate how many fishnet grid cells are preserved?  What is it on a percentage basis? Can you re-scale slope to look at it how it varies from preserved/not-preserved?**
 
-```{r}
-preservePlotVariables <- 
-  preservePlotVariables %>%
-  mutate(value = ifelse(key == "slope", value*100, value))
+# 4. Data wrangling
 
-ggplot(preservePlotVariables, aes(as.factor(preserve), value, fill=as.factor(preserve))) + 
-  geom_bar(stat="identity") + 
-  facet_wrap(~key) +
-  scale_fill_manual(values = c("dodgerblue4", "darkgreen"),
-                    labels = c("Not Preserved","Preserved"),
-                    name = "") +
-  labs(x="Preserved", y="Value")
-```
-
-
-*How many fishnet grid cells are preserved? What is it on a percentage basis?*
-
-# Data wrangling
-
-Lets build another dataset of just the variables we want to analyze. Notice that land cover is an integer but we want it to be a factor, so it gets recoded.
+Lets build another data set of just the variables we want to analyze. Notice that land cover is an integer but we want it to be a factor, so it gets recoded.
 
 ```{r}
 preserve <- 
   preserve %>%
-  select(preserve,elevation,slope,dSteepSlop,landCover,dUrban,distRivers) 
-
-preserve$landCover <- as.factor(preserve$landCover)
+  select(preserve,elevation,slope,dSteepSlop,landCover,dUrban,distRivers) %>%
+  mutate(landCover = as.factor(landCover))
 ```
 
 # Model building
 
-Now we create training and test sets. Why do you think `preserve$landCover` is specified below?
+Now we create training and test sets. 
+
+Let's look over this operation:
+
+- `set.seed` generates a random number
+
+- `createDataPartition` randomly separates our data into two sets. Why do you think `preserve$landCover` is specified below?
 
 Why is it important to have separate training and test sets?
 
@@ -206,6 +224,7 @@ set.seed(3456)
 trainIndex <- createDataPartition(preserve$landCover, p = .70,
                                   list = FALSE,
                                   times = 1)
+
 preserveTrain <- preserve[ trainIndex,]
 preserveTest  <- preserve[-trainIndex,]
 ```
@@ -333,7 +352,7 @@ What if we wanted to know whether our model generalized well across different co
 
 # Map predictions
 
-Now that we have tuned out model, let’s predict for the entire dataset.
+Now that we have tuned our model, let’s predict for the entire dataset.
 
 ```{r}
 allPredictions <- 
@@ -346,27 +365,32 @@ preserve <-
 
 Now we map the predictions.
 
-What would you title this map? Note how we use ntile in the aes parameter to create quintiles. The quintile labels are created in the scale_fill_manual function.
+What would you title this map? 
+
+Note how we use ntile in the aes parameter to create quintiles. (The quintile labels are created in the scale_fill_manual function.)
 
 ```{r}
  ggplot() + 
-    geom_sf(data=preserve, aes(fill=factor(ntile(allPredictions,5))), colour=NA) +
+    geom_sf(data=preserve, aes(fill=factor(ntile(allPredictions,5))), 
+            colour=NA) +
     scale_fill_manual(values = c("#edf8fb","#b3cde3","#8c96c6","#8856a7","#810f7c"),
                       labels=as.character(quantile(preserve$allPredictions,
-                                                 c(0.1,.2,.4,.6,.8),na.rm=T)),
+                                                 c(0.1,.2,.4,.6,.8),
+                                                 na.rm=T)),
                       name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
   mapTheme +
   labs(title="")
 ```
 
-Let’s map it again with the already other land cover types overlayed.
+Let’s map it again with the already other land cover types overlaid.
 
 ```{r}
  ggplot() + 
   geom_sf(data=preserve, aes(fill=factor(ntile(allPredictions,5))), colour=NA) +
   scale_fill_manual(values = c("#edf8fb","#b3cde3","#8c96c6","#8856a7","#810f7c"),
                     labels=as.character(quantile(preserve$allPredictions,
-                                                 c(0.1,.2,.4,.6,.8),na.rm=T)),
+                                                 c(0.1,.2,.4,.6,.8),
+                                                 na.rm=T)),
                     name="Predicted\nProbabilities(%)\n(Quintile\nBreaks)") +
   geom_sf(data=preserve  %>% 
                filter(preserve == 1), 
@@ -527,4 +551,120 @@ ggplot() +
   geom_point(data=unicornFarms, aes(st_coordinates(unicornFarms)[,1],
                                     st_coordinates(unicornFarms)[,2])) +
   mapTheme
+```
+
+# Appendix 3. Geoprocessing and data-wrangling vignettes
+
+In order to make other spatial variables for models you are building in R, you might find yourself wanting to summarize vector or raster information inside a fishnet.
+
+Let's take our basic fishnet `preserve` from the earlier part of this exercise, and think about how we are going to wrangle some basic data into the fishnet and engineer some features.
+
+## Spatial joins and summaries
+
+Let's join and summarize some spatial data to get it into our fishnet.
+
+First let's see which state forest district each cell belongs to ([these data come from PASDA and PA DCNR](https://www.pasda.psu.edu/uci/DataSummary.aspx?dataset=113)). We `st_read` state forest districts, reproject them to `crs = 2272` so they match `preserve` (not sure what CRS your data are in? query them with `st_crs`)
+
+```{r park_boundaries, message = FALSE, warning = FALSE}
+forest_districts <- st_read("https://raw.githubusercontent.com/mafichman/CPLN_675/main/Week_7_10/data/pa_conservation/DCNR_BOF_Bndry_SFM201703.geojson") %>%
+  st_transform(2272)
+```
+We can quickly check the data and see how they look. They are large polygons.
+
+```{r ggplot_districts}
+
+ggplot()+
+  geom_sf(data = forest_districts)
+
+```
+
+We can join our `preserve` centroids to these polygons. (Why are we joining the centroids to the polygons? Think about the scale biases associated with different types of joins.)
+
+We will do this in a few steps, but it's easiest when it's all "piped" together.
+
+```{r join_forests}
+
+# Turn preserve into centroid points and join
+
+preserve_and_forests_centroid <-
+  st_join(preserve %>%
+            st_centroid(),
+          forest_districts)
+
+# Turn this data into a data frame, throw away everything but the new data and the unique id (select) of the fishnet cells and then join it back go the original
+
+preserve_and_forests_fishnet <-
+  left_join(preserve,
+            preserve_and_forests_centroid %>%
+              as.data.frame() %>%
+              select(DistrictNa, Id))
+```
+
+Now let's load in some points representing local park access points, and summarize how many points we find in each of our fishnet cells. These data [also come from DCNR](https://www.pasda.psu.edu/uci/DataSummary.aspx?dataset=308), and we reproject them to `crs = 2272` as well.
+
+```{r load_parks, warning = FALSE, message = FALSE}
+local_parks <- st_read("https://raw.githubusercontent.com/mafichman/CPLN_675/main/Week_7_10/data/pa_conservation/DCNR_LocalParkAccess201511.geojson") %>%
+  st_transform(2272)
+```
+
+Inspect the data and you will see that these are thousands of points across the commonwealth. Let's find out how many we have in each of our cells, and also calculate how many we have by unit area.
+
+Notice we join the parks on the left hand side of this join. What happens if you do it the other way?
+
+```{r join_parks}
+parks_and_fishnet <- st_join(local_parks, preserve_and_forests_fishnet)
+```
+
+You can look at these data and see that we have lots of extraneous info. What do we really care about here? Number of points per cell. So let's group by our unique identifier, `Id` and summarize (you can use this `n()` way of doing things, or there are alternatives like `tally`), then join this summary back to the fishnet... all at once!
+
+Here we do a 'right_join` - we keep all the observations on the right hand side (e.g. our fishnet cells), and only the things on the left that we need.
+
+What is the `.` thing you ask? Well in a join you need two sides to write the function - so the period stands in for the data being piped in.
+
+```{r park_summary}
+
+preserve_and_forests_and_parks_fishnet <-
+  parks_and_fishnet %>%
+  as.data.frame() %>% # Need to make the sf a dataframe to throw away the geometry
+  group_by(Id) %>%
+  summarize(n_parks = n()) %>%
+  right_join(., preserve_and_forests_fishnet) %>%
+  st_as_sf()
+
+```
+
+Now let's do an area normalization calculation and create a count of points by area. Mind the projection. Remember we are in `crs = 2272` that's a projected coordinate system with a linear unit in feet. If you are using `WGS84` aka `crs  4326` aka `lat /lon` aka `google maps projection` this will give you a calculation in decimal degrees, which is not good.
+
+The key is to use the `st_area` - and then we get a measurement in the linear unit.
+
+We create `parks_sqmi` by dividing the number of parks in the cell by the area (transformed into miles from feet). I looked up on google that 1 square foot is 3.587e-8 square miles.
+
+```{r unit_area}
+preserve_and_forests_and_parks_fishnet <-
+  preserve_and_forests_and_parks_fishnet %>%
+  mutate(area = st_area(geometry),
+         parks_sqmi = n_parks/(as.numeric(area)*.00000003587))
+```
+
+Now I'm going to make a map just to check it all out:
+
+```{r last_map}
+ggplot()+
+  geom_sf(data = preserve_and_forests_and_parks_fishnet,
+          aes(fill = parks_sqmi), color = "transparent")+
+  scale_fill_viridis()+
+  mapTheme
+
+```
+
+## Rescale/recategorize data
+
+What if I wasn't so keen on steep slopes being related in a linear way to our outcome? Maybe I can reclassify them into what we call a "dummy variable" (aka a "fixed effect") - what if we call some new levels "high slope", "medium slope" and "low slope." I can do this with a `case_when` for multiple categories. I could also use `ifelse` to create two categories. Check out these examples:
+
+```{r rescale_slope}
+preserve_and_forests_and_parks_fishnet %>%
+  mutate(slope_category_2 = ifelse(slope >= 6, "high slope", "low slope"),
+         slope_category_3 = case_when(slope < 3 ~ "low slope",
+                                      slope >= 3 & slope <6 ~ "medium slope",
+                                      slope >= 6 ~ "high slope"))
 ```
