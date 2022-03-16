@@ -202,7 +202,7 @@ ggplot(preservePlotVariables %>%
                   mean, 
                   fill=as.factor(preserve)),
               stat="identity") + 
-     facet_wrap(~variable) +
+     facet_wrap(~variable, scales="free") +
      scale_fill_manual(values = c("dark blue", "dark green"),
                       labels = c("Not Preserved","Preserved"),
                       name = "") +
@@ -212,6 +212,18 @@ ggplot(preservePlotVariables %>%
 *Question:*
 
 **Can you calculate how many fishnet grid cells are preserved?  What is it on a percentage basis? Can you re-scale slope to look at it how it varies from preserved/not-preserved?**
+
+```{r}
+nPreserved <- sum(preserve$preserve)
+nTotal <- nrow(preserve)
+
+pctPreserved <- nPreserved / nTotal * 100
+
+# Also, with the binary classification of preserve, you can run:
+summary(preserve$preserve)
+# and the mean indicates the pct of preserved land
+```
+
 
 # 4. Data wrangling
 
@@ -309,11 +321,12 @@ ggplot(testProbs, aes(x = pred, fill=as.factor(obs))) +
 Let’s (arbitrarily for now) choose 50% and then create a table of our correct and incorrect predictions, called a "confusion matrix". Below we set the reference to the observed preserved status, data to the predicted outcome, and make sure to state which factor level is the positive (ie. preserved) level. Note that `confusionMatrix` does not take numeric inputs, only factors.
 
 ```{r confusion_matrix, message = FALSE, warning = FALSE}
-testProbs$predClass  = ifelse(testProbs$pred > .5 ,1,0)
+testProbs$predClass  = ifelse(testProbs$pred > .4 ,1,0)
 
 caret::confusionMatrix(reference = as.factor(testProbs$obs), 
                        data = as.factor(testProbs$predClass), 
                        positive = "1")
+
 ```
 
 What is the sensitivy and specificity suggest about our model? What is accuracy suggest? Why would we choose a higher threshold cutoff?
